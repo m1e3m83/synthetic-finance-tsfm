@@ -1,0 +1,5 @@
+experiment_id,prior,architecture,seed,horizons,optimizer_steps,status,result_location
+smoke-generic-17,generic,patchtst_style,17,"1;5;22",20,configured,runs/smoke
+smoke-volatility-17,volatility,patchtst_style,17,"1;5;22",20,configured,runs/smoke
+pilot-generic-42,generic,patchtst_style,42,"1;5;22",10000,not_started,runs/pilot
+pilot-volatility-42,volatility,patchtst_style,42,"1;5;22",10000,not_started,runs/pilot

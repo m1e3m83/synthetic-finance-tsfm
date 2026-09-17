@@ -1,0 +1,31 @@
+experiment:
+  name: smoke_equal_budget
+  output_dir: runs/smoke
+  seed: 17
+  priors: [generic, volatility]
+  train_samples: 128
+  validation_samples: 64
+  series_length: 112
+
+data:
+  context_length: 64
+  horizons: [1, 5, 22]
+  epsilon: 1.0e-10
+
+model:
+  patch_length: 8
+  patch_stride: 4
+  num_hidden_layers: 1
+  d_model: 32
+  num_attention_heads: 4
+  ffn_dim: 64
+  dropout: 0.0
+
+training:
+  batch_size: 16
+  optimizer_steps: 20
+  learning_rate: 0.001
+  weight_decay: 0.0
+  validation_interval: 5
+  device: cpu
+
