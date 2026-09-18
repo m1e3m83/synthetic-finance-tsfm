@@ -1,0 +1,31 @@
+experiment:
+  name: pilot_architecture_benchmark
+  output_dir: runs/benchmark
+  seed: 17
+  priors: [generic, volatility]
+  train_samples: 1024
+  validation_samples: 256
+  series_length: 384
+
+data:
+  context_length: 256
+  horizons: [1, 5, 22]
+  epsilon: 1.0e-10
+
+model:
+  patch_length: 16
+  patch_stride: 8
+  num_hidden_layers: 4
+  d_model: 128
+  num_attention_heads: 4
+  ffn_dim: 512
+  dropout: 0.1
+
+training:
+  batch_size: 64
+  optimizer_steps: 100
+  learning_rate: 0.0001
+  weight_decay: 0.01
+  validation_interval: 25
+  device: auto
+

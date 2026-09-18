@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import io
+import ssl
 import urllib.request
 import zipfile
 from pathlib import Path
 
+import certifi
 import pandas as pd
 
 KLINE_COLUMNS = (
@@ -43,7 +45,8 @@ def download_monthly_klines(
     cache.mkdir(parents=True, exist_ok=True)
     archive_path = cache / Path(url).name
     if not archive_path.exists():
-        with urllib.request.urlopen(url, timeout=60) as response:  # noqa: S310
+        tls_context = ssl.create_default_context(cafile=certifi.where())
+        with urllib.request.urlopen(url, timeout=60, context=tls_context) as response:  # noqa: S310
             payload = response.read()
         archive_path.write_bytes(payload)
     payload = archive_path.read_bytes()

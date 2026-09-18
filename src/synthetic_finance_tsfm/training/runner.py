@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import time
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from itertools import cycle
 from pathlib import Path
 from typing import Any
@@ -239,9 +239,16 @@ def _evaluate_cross_prior(
     return metrics, pd.DataFrame.from_records(records)
 
 
-def run_experiment(config_path: str | Path) -> Path:
+def run_experiment(config_path: str | Path, *, seed_override: int | None = None) -> Path:
     """Train each implemented prior and write a cross-prior smoke/pilot artifact set."""
     config = load_config(config_path)
+    if seed_override is not None:
+        if seed_override < 0:
+            raise ValueError("seed_override must be non-negative")
+        config = replace(
+            config,
+            experiment=replace(config.experiment, seed=seed_override),
+        )
     unimplemented = set(config.experiment.priors) - {"generic", "volatility"}
     if unimplemented:
         raise NotImplementedError(
@@ -332,3 +339,77 @@ def run_experiment(config_path: str | Path) -> Path:
     predictions = pd.concat(prediction_frames, ignore_index=True)
     atomic_write_text(run_dir / "predictions.csv", predictions.to_csv(index=False))
     return run_dir
+
+
+def summarize_calibration(run_directories: list[str | Path], output_path: str | Path) -> Path:
+    """Aggregate equal-budget seed runs and evaluate predeclared synthetic gates."""
+    if len(run_directories) < 2:
+        raise ValueError("At least two seed runs are required for calibration summary")
+    runs: list[dict[str, Any]] = []
+    for directory in run_directories:
+        metrics_path = Path(directory) / "metrics.json"
+        if not metrics_path.exists():
+            raise FileNotFoundError(metrics_path)
+        import json
+
+        runs.append(json.loads(metrics_path.read_text(encoding="utf-8")))
+
+    reference_budget = {
+        key: value for key, value in runs[0]["equal_budget"].items() if key != "seed"
+    }
+    for run in runs[1:]:
+        comparison = {key: value for key, value in run["equal_budget"].items() if key != "seed"}
+        if comparison != reference_budget:
+            raise ValueError("Calibration runs do not have equal non-seed budgets")
+
+    priors = sorted(runs[0]["cross_prior"])
+    matrix: dict[str, dict[str, dict[str, float]]] = {}
+    for model_prior in priors:
+        matrix[model_prior] = {}
+        for evaluation_prior in priors:
+            losses = np.asarray(
+                [run["cross_prior"][model_prior][evaluation_prior]["mean_qlike"] for run in runs],
+                dtype=np.float64,
+            )
+            matrix[model_prior][evaluation_prior] = {
+                "mean_qlike": float(losses.mean()),
+                "std_qlike": float(losses.std(ddof=1)),
+            }
+
+    own_domain_wins: dict[str, int] = {}
+    matched_model_wins: dict[str, int] = {}
+    for prior in priors:
+        own_domain_wins[prior] = sum(
+            bool(run["cross_prior"][prior][prior]["beats_last_value_qlike"]) for run in runs
+        )
+        alternatives = [candidate for candidate in priors if candidate != prior]
+        matched_model_wins[prior] = sum(
+            all(
+                run["cross_prior"][prior][prior]["mean_qlike"]
+                < run["cross_prior"][alternative][prior]["mean_qlike"]
+                for alternative in alternatives
+            )
+            for run in runs
+        )
+
+    required_wins = len(runs) // 2 + 1
+    synthetic_learning_pass = all(wins >= required_wins for wins in own_domain_wins.values())
+    distinguishability_pass = all(wins >= required_wins for wins in matched_model_wins.values())
+    summary = {
+        "result_label": "synthetic_calibration",
+        "run_count": len(runs),
+        "seeds": [run["equal_budget"]["seed"] for run in runs],
+        "equal_non_seed_budget": reference_budget,
+        "cross_prior_mean_matrix": matrix,
+        "own_domain_wins_against_last_value": own_domain_wins,
+        "matched_model_wins_on_each_prior": matched_model_wins,
+        "required_majority_wins": required_wins,
+        "gate_status": {
+            "synthetic_learning": "pass" if synthetic_learning_pass else "fail",
+            "prior_distinguishability": "pass" if distinguishability_pass else "fail",
+            "real_pilot": "not_run",
+        },
+    }
+    destination = Path(output_path)
+    write_json(destination, summary)
+    return destination

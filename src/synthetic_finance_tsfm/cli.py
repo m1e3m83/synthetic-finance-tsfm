@@ -7,9 +7,11 @@ import json
 from pathlib import Path
 
 from synthetic_finance_tsfm.config import load_config
+from synthetic_finance_tsfm.data.pilot import prepare_binance_pilot
+from synthetic_finance_tsfm.evaluation.real_pilot import evaluate_real_pilot
 from synthetic_finance_tsfm.synthetic import generate_series
 from synthetic_finance_tsfm.synthetic.diagnostics import describe_variance
-from synthetic_finance_tsfm.training.runner import run_experiment
+from synthetic_finance_tsfm.training.runner import run_experiment, summarize_calibration
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -26,6 +28,25 @@ def _parser() -> argparse.ArgumentParser:
 
     smoke = subcommands.add_parser("run", help="Run a configured synthetic experiment")
     smoke.add_argument("--config", required=True, type=Path)
+    smoke.add_argument("--seed", type=int, help="Override the configured seed")
+
+    summarize = subcommands.add_parser(
+        "summarize-calibration", help="Aggregate completed equal-budget seed runs"
+    )
+    summarize.add_argument("--runs", nargs="+", required=True, type=Path)
+    summarize.add_argument("--output", required=True, type=Path)
+
+    prepare_pilot = subcommands.add_parser(
+        "prepare-binance-pilot", help="Download and aggregate the frozen pilot-only panel"
+    )
+    prepare_pilot.add_argument("--config", required=True, type=Path)
+
+    evaluate_pilot = subcommands.add_parser(
+        "evaluate-real-pilot", help="Evaluate frozen synthetic checkpoints on pilot-only data"
+    )
+    evaluate_pilot.add_argument("--manifest", required=True, type=Path)
+    evaluate_pilot.add_argument("--runs", nargs="+", required=True, type=Path)
+    evaluate_pilot.add_argument("--output-dir", required=True, type=Path)
     return parser
 
 
@@ -49,7 +70,23 @@ def main() -> None:
         )
         return
     if args.command == "run":
-        destination = run_experiment(args.config)
+        destination = run_experiment(args.config, seed_override=args.seed)
+        print(destination)
+        return
+    if args.command == "summarize-calibration":
+        destination = summarize_calibration(args.runs, args.output)
+        print(destination)
+        return
+    if args.command == "prepare-binance-pilot":
+        destination = prepare_binance_pilot(args.config)
+        print(destination)
+        return
+    if args.command == "evaluate-real-pilot":
+        destination = evaluate_real_pilot(
+            manifest_path=args.manifest,
+            run_directories=args.runs,
+            output_dir=args.output_dir,
+        )
         print(destination)
         return
     raise RuntimeError(f"Unhandled command: {args.command}")

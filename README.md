@@ -86,6 +86,54 @@ runs/smoke/smoke_equal_budget-seed17/
 Smoke results verify plumbing only. A single small run cannot establish a prior advantage or support a
 real-data claim.
 
+## Run the three-seed synthetic calibration
+
+```bash
+for seed in 17 29 43; do
+  uv run synthetic-finance-tsfm run --config configs/pilot/calibration.yaml --seed "$seed"
+done
+
+uv run synthetic-finance-tsfm summarize-calibration \
+  --runs \
+    runs/calibration/medium_synthetic_calibration-seed17 \
+    runs/calibration/medium_synthetic_calibration-seed29 \
+    runs/calibration/medium_synthetic_calibration-seed43 \
+  --output runs/calibration/calibration_summary.json
+```
+
+This stage decides whether both models learn their own synthetic distributions more reliably than a
+Last Value forecast and whether the two priors are distinguishable across seeds. It still contains no
+real-data evaluation.
+
+## Prepare the pilot-only Binance panel
+
+The frozen pilot manifest uses BTCUSDT, ETHUSDT, and SOLUSDT five-minute observations from January
+2024 through June 2025. These assets and windows are engineering data and are ineligible for final
+reported evaluation.
+
+```bash
+uv run synthetic-finance-tsfm prepare-binance-pilot \
+  --config configs/data/binance_pilot.yaml
+```
+
+The command caches the source archives, calculates daily realized variance, validates coverage, and
+writes checksums and exclusions to `data/processed/binance_pilot/manifest.json`.
+
+Evaluate the already-frozen three-seed calibration checkpoints exactly once:
+
+```bash
+uv run synthetic-finance-tsfm evaluate-real-pilot \
+  --manifest data/processed/binance_pilot/manifest.json \
+  --runs \
+    runs/calibration/medium_synthetic_calibration-seed17 \
+    runs/calibration/medium_synthetic_calibration-seed29 \
+    runs/calibration/medium_synthetic_calibration-seed43 \
+  --output-dir runs/real_pilot/calibration_checkpoints
+```
+
+This command fits real-history baselines at each origin, but never updates or selects a neural
+checkpoint using the real pilot observations.
+
 ## Repository structure
 
 ```text

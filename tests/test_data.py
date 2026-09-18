@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from synthetic_finance_tsfm.data.pilot import load_pilot_config
 from synthetic_finance_tsfm.data.realized_variance import realized_variance_from_prices
 from synthetic_finance_tsfm.data.splits import split_origins_with_embargo
 from synthetic_finance_tsfm.data.windows import (
@@ -83,3 +84,11 @@ def test_duplicate_intraday_timestamp_is_rejected() -> None:
             data_source="fixture",
             interval_minutes=5,
         )
+
+
+def test_frozen_binance_manifest_is_pilot_only() -> None:
+    config = load_pilot_config("configs/data/binance_pilot.yaml")
+    assert config["role"] == "pilot_only"
+    assert config["symbols"] == ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+    assert config["start_month"] == "2024-01"
+    assert config["end_month"] == "2025-06"

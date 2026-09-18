@@ -19,8 +19,11 @@
 - [x] Implement a randomly initialized PatchTST-style encoder with a custom multi-horizon head.
 - [x] Implement checkpointed equal-budget training and cross-prior evaluation.
 - [x] Add unit tests and a CPU smoke configuration.
-- [ ] Validate a public Binance pilot dataset and freeze its pilot-only manifest.
-- [ ] Run the three-seed controlled pilot on GPU hardware.
+- [x] Pass a three-seed, 500-step Generic-versus-Volatility synthetic calibration.
+- [x] Validate a public Binance pilot dataset and freeze its pilot-only manifest.
+- [x] Evaluate the frozen calibration checkpoints once on pilot-only real data.
+- [x] Benchmark the predeclared pilot architecture and estimate three-seed compute.
+- [ ] Run the predeclared three-seed pilot architecture using synthetic data only.
 - [ ] Request and verify VOLARE access and its redistribution terms.
 - [ ] Add Regime-and-Tail and Mixed priors only after pilot gates pass.
 - [ ] Add ForecastPFN and public-foundation-model baselines after the core comparison is stable.
@@ -43,3 +46,16 @@ the resolved configuration.
 - **Provider access:** keep the canonical schema provider-independent and never infer unavailable
   VOLARE fields.
 
+## Opened pilot status
+
+The Binance engineering panel has been opened for evaluation. It cannot be used for any further
+generator, architecture, hyperparameter, or checkpoint choice. Detailed results and their limitations
+are recorded in `docs/pilot_results.md`.
+
+## Pilot architecture benchmark
+
+The predeclared 796,163-parameter architecture required approximately 8.4--8.5 seconds per 100
+optimizer steps per prior on the local CPU. A 10,000-step run is therefore estimated at roughly
+14--17 minutes per prior before allowing for larger synthetic-set generation and validation. Six runs
+(two priors across three seeds) are budgeted at approximately 1.5--2 hours on this machine. This is an
+extrapolation, so actual runtime and thermal throttling must be recorded.
