@@ -162,6 +162,21 @@ def test_synthetic_evaluation_recovers_existing_checkpoints(tmp_path: Path) -> N
 
     recovered = evaluate_synthetic_checkpoints(config_path)
     metrics = json.loads((recovered / "metrics.json").read_text(encoding="utf-8"))
-    assert metrics["gate_status"]["pipeline"] == "checkpoint_evaluation_complete"
+    assert metrics["gate_status"]["pipeline"].endswith("unverified_training")
+    assert metrics["training_completion_verified"] is False
     assert metrics["training"]["generic"]["recovered_from_checkpoint"] is True
     assert (recovered / "predictions.csv").exists()
+
+
+def test_calibration_summary_rejects_unverified_training(tmp_path: Path) -> None:
+    run_directories = []
+    for seed in (1, 2):
+        run_directory = tmp_path / f"run-{seed}"
+        run_directory.mkdir()
+        (run_directory / "metrics.json").write_text(
+            json.dumps({"training_completion_verified": False}), encoding="utf-8"
+        )
+        run_directories.append(run_directory)
+
+    with np.testing.assert_raises_regex(ValueError, "Training completion is not verified"):
+        summarize_calibration(run_directories, tmp_path / "summary.json")

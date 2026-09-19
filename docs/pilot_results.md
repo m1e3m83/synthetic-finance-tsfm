@@ -57,5 +57,11 @@ use a separate, sealed final dataset.
 
 The already-declared pilot architecture contains 796,163 parameters. A representative 100-step
 benchmark took 8.39 seconds for Generic and 8.52 seconds for Volatility on CPU. The planned six
-10,000-step runs are expected to require approximately 1.5--2 hours locally. This training will remain
-synthetic-only and will not be re-evaluated on the opened Binance panel.
+10,000-step runs were started locally, but the processes were interrupted during Volatility training.
+The Generic runs necessarily completed before Volatility began; the Volatility checkpoints do not
+prove that their full budgets finished. Recovered metrics are therefore diagnostic and are excluded
+from the research result.
+
+The clean rerun uses `configs/pilot/pilot_gpu.yaml`, writes to a separate directory, and records an
+explicit completion artifact after each full prior run. This training remains synthetic-only and will
+not be re-evaluated on the opened Binance panel. Exact commands are in `docs/gpu_runbook.md`.

@@ -39,6 +39,8 @@ the resolved configuration.
 ## Risks and responses
 
 - **Limited local memory:** keep smoke inputs small and benchmark before pilot scaling.
+- **Interrupted long runs:** write a completion record after each prior finishes its full optimizer
+  budget; never infer completion from a best-checkpoint file alone.
 - **Synthetic/real mismatch:** export descriptor summaries and the cross-prior holdout matrix.
 - **Loss instability:** train the smoke model in normalized log space and evaluate with positive-floor
   QLIKE on the original scale.
@@ -59,3 +61,11 @@ optimizer steps per prior on the local CPU. A 10,000-step run is therefore estim
 14--17 minutes per prior before allowing for larger synthetic-set generation and validation. Six runs
 (two priors across three seeds) are budgeted at approximately 1.5--2 hours on this machine. This is an
 extrapolation, so actual runtime and thermal throttling must be recorded.
+
+## Current full-pilot status
+
+The local three-seed attempt produced complete Generic checkpoints, but its three Volatility jobs
+were interrupted without completion records. Their recovered cross-prior metrics are diagnostic only
+and are not accepted by the calibration summarizer. The clean rerun is defined in
+`configs/pilot/pilot_gpu.yaml` and `docs/gpu_runbook.md`; it uses a new output directory and requires
+verified CUDA execution.

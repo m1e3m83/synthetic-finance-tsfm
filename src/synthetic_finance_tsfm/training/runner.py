@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import time
 from dataclasses import asdict, replace
@@ -298,6 +299,7 @@ def run_experiment(config_path: str | Path, *, seed_override: int | None = None)
         )
         models[prior] = model
         training_metrics[prior] = summary
+        write_json(run_dir / "training" / f"{prior}.json", summary)
 
     cross_prior: dict[str, Any] = {}
     prediction_frames: list[pd.DataFrame] = []
@@ -327,6 +329,7 @@ def run_experiment(config_path: str | Path, *, seed_override: int | None = None)
             "seed": config.experiment.seed,
         },
         "training": training_metrics,
+        "training_completion_verified": True,
         "cross_prior": cross_prior,
         "gate_status": {
             "pipeline": "partial_smoke_only",
@@ -386,6 +389,7 @@ def evaluate_synthetic_checkpoints(
 
     models: dict[str, PatchTSTStyleRegressor] = {}
     training_metrics: dict[str, Any] = {}
+    completion_verified = True
     for prior in config.experiment.priors:
         checkpoint = run_dir / "checkpoints" / f"{prior}.pt"
         if not checkpoint.exists():
@@ -398,16 +402,28 @@ def evaluate_synthetic_checkpoints(
             raise ValueError(f"Model configuration mismatch in {checkpoint}")
         model.load_state_dict(payload["model_state"])
         models[prior] = model
-        training_metrics[prior] = {
-            "prior": prior,
-            "parameter_count": model.parameter_count,
-            "optimizer_steps": config.training.optimizer_steps,
-            "best_step": payload["step"],
-            "best_validation_log_mse": payload["validation_log_mse"],
-            "checkpoint": str(checkpoint),
-            "recovered_from_checkpoint": True,
-            "validation_generator": asdict(validation_sets[prior].metadata),
-        }
+        completion_record = run_dir / "training" / f"{prior}.json"
+        if completion_record.exists():
+            summary = json.loads(completion_record.read_text(encoding="utf-8"))
+            if summary.get("prior") != prior:
+                raise ValueError(f"Prior mismatch in {completion_record}")
+            if summary.get("optimizer_steps") != config.training.optimizer_steps:
+                raise ValueError(f"Training-budget mismatch in {completion_record}")
+            summary["recovered_from_checkpoint"] = True
+            training_metrics[prior] = summary
+        else:
+            completion_verified = False
+            training_metrics[prior] = {
+                "prior": prior,
+                "parameter_count": model.parameter_count,
+                "optimizer_steps": config.training.optimizer_steps,
+                "best_step": payload["step"],
+                "best_validation_log_mse": payload["validation_log_mse"],
+                "checkpoint": str(checkpoint),
+                "recovered_from_checkpoint": True,
+                "completion_record_missing": True,
+                "validation_generator": asdict(validation_sets[prior].metadata),
+            }
 
     cross_prior: dict[str, Any] = {}
     prediction_frames: list[pd.DataFrame] = []
@@ -437,9 +453,14 @@ def evaluate_synthetic_checkpoints(
             "seed": config.experiment.seed,
         },
         "training": training_metrics,
+        "training_completion_verified": completion_verified,
         "cross_prior": cross_prior,
         "gate_status": {
-            "pipeline": "checkpoint_evaluation_complete",
+            "pipeline": (
+                "checkpoint_evaluation_complete"
+                if completion_verified
+                else "checkpoint_evaluation_complete_unverified_training"
+            ),
             "synthetic_learning": "inspect_cross_prior_metrics",
             "prior_contrast": "aggregate_across_seeds",
             "real_pilot": "not_run",
@@ -460,9 +481,10 @@ def summarize_calibration(run_directories: list[str | Path], output_path: str | 
         metrics_path = Path(directory) / "metrics.json"
         if not metrics_path.exists():
             raise FileNotFoundError(metrics_path)
-        import json
-
-        runs.append(json.loads(metrics_path.read_text(encoding="utf-8")))
+        run = json.loads(metrics_path.read_text(encoding="utf-8"))
+        if run.get("training_completion_verified") is False:
+            raise ValueError(f"Training completion is not verified for {directory}")
+        runs.append(run)
 
     reference_budget = {
         key: value for key, value in runs[0]["equal_budget"].items() if key != "seed"

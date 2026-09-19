@@ -7,5 +7,15 @@ calibration-generic-29,generic,patchtst_style,29,"1;5;22",500,complete,runs/cali
 calibration-volatility-29,volatility,patchtst_style,29,"1;5;22",500,complete,runs/calibration
 calibration-generic-43,generic,patchtst_style,43,"1;5;22",500,complete,runs/calibration
 calibration-volatility-43,volatility,patchtst_style,43,"1;5;22",500,complete,runs/calibration
-pilot-generic-42,generic,patchtst_style,42,"1;5;22",10000,not_started,runs/pilot
-pilot-volatility-42,volatility,patchtst_style,42,"1;5;22",10000,not_started,runs/pilot
+pilot-local-generic-17,generic,patchtst_style,17,"1;5;22",10000,complete_checkpoint_only,runs/pilot
+pilot-local-volatility-17,volatility,patchtst_style,17,"1;5;22",10000,interrupted_unverified,runs/pilot
+pilot-local-generic-29,generic,patchtst_style,29,"1;5;22",10000,complete_checkpoint_only,runs/pilot
+pilot-local-volatility-29,volatility,patchtst_style,29,"1;5;22",10000,interrupted_unverified,runs/pilot
+pilot-local-generic-43,generic,patchtst_style,43,"1;5;22",10000,complete_checkpoint_only,runs/pilot
+pilot-local-volatility-43,volatility,patchtst_style,43,"1;5;22",10000,interrupted_unverified,runs/pilot
+pilot-gpu-generic-17,generic,patchtst_style,17,"1;5;22",10000,planned,runs/pilot_gpu
+pilot-gpu-volatility-17,volatility,patchtst_style,17,"1;5;22",10000,planned,runs/pilot_gpu
+pilot-gpu-generic-29,generic,patchtst_style,29,"1;5;22",10000,planned,runs/pilot_gpu
+pilot-gpu-volatility-29,volatility,patchtst_style,29,"1;5;22",10000,planned,runs/pilot_gpu
+pilot-gpu-generic-43,generic,patchtst_style,43,"1;5;22",10000,planned,runs/pilot_gpu
+pilot-gpu-volatility-43,volatility,patchtst_style,43,"1;5;22",10000,planned,runs/pilot_gpu

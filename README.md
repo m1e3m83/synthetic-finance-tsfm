@@ -113,6 +113,10 @@ uv run synthetic-finance-tsfm evaluate-synthetic \
   --config configs/pilot/pilot.yaml --seed 17
 ```
 
+Checkpoint recovery reports whether full training is verifiable and the calibration summarizer
+rejects explicitly unverified runs. For the complete three-seed GPU procedure, use
+[`docs/gpu_runbook.md`](docs/gpu_runbook.md).
+
 ## Prepare the pilot-only Binance panel
 
 The frozen pilot manifest uses BTCUSDT, ETHUSDT, and SOLUSDT five-minute observations from January
