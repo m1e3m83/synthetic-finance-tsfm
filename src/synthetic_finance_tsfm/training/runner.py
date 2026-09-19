@@ -341,6 +341,116 @@ def run_experiment(config_path: str | Path, *, seed_override: int | None = None)
     return run_dir
 
 
+def evaluate_synthetic_checkpoints(
+    config_path: str | Path, *, seed_override: int | None = None
+) -> Path:
+    """Finish synthetic evaluation from existing checkpoints without retraining."""
+    config = load_config(config_path)
+    if seed_override is not None:
+        if seed_override < 0:
+            raise ValueError("seed_override must be non-negative")
+        config = replace(
+            config,
+            experiment=replace(config.experiment, seed=seed_override),
+        )
+    unimplemented = set(config.experiment.priors) - {"generic", "volatility"}
+    if unimplemented:
+        raise NotImplementedError(
+            "Synthetic checkpoint evaluation currently supports Generic and Volatility only; "
+            f"requested {sorted(unimplemented)}"
+        )
+
+    run_dir = Path(config.experiment.output_dir) / (
+        f"{config.experiment.name}-seed{config.experiment.seed}"
+    )
+    recorded_config_path = run_dir / "config.yaml"
+    if not recorded_config_path.exists():
+        raise FileNotFoundError(recorded_config_path)
+    if load_config(recorded_config_path) != config:
+        raise ValueError(
+            f"The requested configuration does not match the recorded run in {run_dir}"
+        )
+
+    device = _device(config.training.device)
+    validation_sets: dict[str, SyntheticWindowDataset] = {}
+    for prior in config.experiment.priors:
+        validation_sets[prior] = make_synthetic_dataset(
+            prior=prior,
+            sample_count=config.experiment.validation_samples,
+            series_length=config.experiment.series_length,
+            context_length=config.data.context_length,
+            horizons=config.data.horizons,
+            epsilon=config.data.epsilon,
+            seed=derived_seed(config.experiment.seed, "validation"),
+        )
+
+    models: dict[str, PatchTSTStyleRegressor] = {}
+    training_metrics: dict[str, Any] = {}
+    for prior in config.experiment.priors:
+        checkpoint = run_dir / "checkpoints" / f"{prior}.pt"
+        if not checkpoint.exists():
+            raise FileNotFoundError(checkpoint)
+        payload = torch.load(checkpoint, map_location=device, weights_only=True)
+        if payload.get("prior") != prior:
+            raise ValueError(f"Prior mismatch in {checkpoint}")
+        model = build_model(config).to(device)
+        if payload.get("model_config") != asdict(model.config):
+            raise ValueError(f"Model configuration mismatch in {checkpoint}")
+        model.load_state_dict(payload["model_state"])
+        models[prior] = model
+        training_metrics[prior] = {
+            "prior": prior,
+            "parameter_count": model.parameter_count,
+            "optimizer_steps": config.training.optimizer_steps,
+            "best_step": payload["step"],
+            "best_validation_log_mse": payload["validation_log_mse"],
+            "checkpoint": str(checkpoint),
+            "recovered_from_checkpoint": True,
+            "validation_generator": asdict(validation_sets[prior].metadata),
+        }
+
+    cross_prior: dict[str, Any] = {}
+    prediction_frames: list[pd.DataFrame] = []
+    for model_prior, model in models.items():
+        cross_prior[model_prior] = {}
+        for evaluation_prior, dataset in validation_sets.items():
+            metrics, predictions = _evaluate_cross_prior(
+                model=model,
+                model_prior=model_prior,
+                evaluation_prior=evaluation_prior,
+                dataset=dataset,
+                horizons=config.data.horizons,
+                batch_size=config.training.batch_size,
+                device=device,
+            )
+            cross_prior[model_prior][evaluation_prior] = metrics
+            prediction_frames.append(predictions)
+
+    result = {
+        "result_label": "synthetic_pilot",
+        "device": str(device),
+        "equal_budget": {
+            "train_samples_per_prior": config.experiment.train_samples,
+            "validation_samples_per_prior": config.experiment.validation_samples,
+            "optimizer_steps_per_prior": config.training.optimizer_steps,
+            "batch_size": config.training.batch_size,
+            "seed": config.experiment.seed,
+        },
+        "training": training_metrics,
+        "cross_prior": cross_prior,
+        "gate_status": {
+            "pipeline": "checkpoint_evaluation_complete",
+            "synthetic_learning": "inspect_cross_prior_metrics",
+            "prior_contrast": "aggregate_across_seeds",
+            "real_pilot": "not_run",
+        },
+    }
+    write_json(run_dir / "metrics.json", result)
+    predictions = pd.concat(prediction_frames, ignore_index=True)
+    atomic_write_text(run_dir / "predictions.csv", predictions.to_csv(index=False))
+    return run_dir
+
+
 def summarize_calibration(run_directories: list[str | Path], output_path: str | Path) -> Path:
     """Aggregate equal-budget seed runs and evaluate predeclared synthetic gates."""
     if len(run_directories) < 2:

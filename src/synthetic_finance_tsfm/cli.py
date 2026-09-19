@@ -11,7 +11,11 @@ from synthetic_finance_tsfm.data.pilot import prepare_binance_pilot
 from synthetic_finance_tsfm.evaluation.real_pilot import evaluate_real_pilot
 from synthetic_finance_tsfm.synthetic import generate_series
 from synthetic_finance_tsfm.synthetic.diagnostics import describe_variance
-from synthetic_finance_tsfm.training.runner import run_experiment, summarize_calibration
+from synthetic_finance_tsfm.training.runner import (
+    evaluate_synthetic_checkpoints,
+    run_experiment,
+    summarize_calibration,
+)
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -29,6 +33,12 @@ def _parser() -> argparse.ArgumentParser:
     smoke = subcommands.add_parser("run", help="Run a configured synthetic experiment")
     smoke.add_argument("--config", required=True, type=Path)
     smoke.add_argument("--seed", type=int, help="Override the configured seed")
+
+    recover = subcommands.add_parser(
+        "evaluate-synthetic", help="Evaluate existing synthetic checkpoints without retraining"
+    )
+    recover.add_argument("--config", required=True, type=Path)
+    recover.add_argument("--seed", type=int, help="Override the configured seed")
 
     summarize = subcommands.add_parser(
         "summarize-calibration", help="Aggregate completed equal-budget seed runs"
@@ -71,6 +81,10 @@ def main() -> None:
         return
     if args.command == "run":
         destination = run_experiment(args.config, seed_override=args.seed)
+        print(destination)
+        return
+    if args.command == "evaluate-synthetic":
+        destination = evaluate_synthetic_checkpoints(args.config, seed_override=args.seed)
         print(destination)
         return
     if args.command == "summarize-calibration":

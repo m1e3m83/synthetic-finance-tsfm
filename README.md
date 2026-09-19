@@ -105,6 +105,14 @@ This stage decides whether both models learn their own synthetic distributions m
 Last Value forecast and whether the two priors are distinguishable across seeds. It still contains no
 real-data evaluation.
 
+If training produced checkpoints but the final evaluation was interrupted, finish the run without
+retraining:
+
+```bash
+uv run synthetic-finance-tsfm evaluate-synthetic \
+  --config configs/pilot/pilot.yaml --seed 17
+```
+
 ## Prepare the pilot-only Binance panel
 
 The frozen pilot manifest uses BTCUSDT, ETHUSDT, and SOLUSDT five-minute observations from January

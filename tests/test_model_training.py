@@ -1,13 +1,19 @@
 import json
+from dataclasses import asdict
 from pathlib import Path
 
 import numpy as np
 import torch
+import yaml
 
 from synthetic_finance_tsfm.config import load_config
 from synthetic_finance_tsfm.models import PatchTSTStyleConfig, PatchTSTStyleRegressor
 from synthetic_finance_tsfm.training.dataset import make_synthetic_dataset
-from synthetic_finance_tsfm.training.runner import build_model, summarize_calibration
+from synthetic_finance_tsfm.training.runner import (
+    build_model,
+    evaluate_synthetic_checkpoints,
+    summarize_calibration,
+)
 
 
 def _tiny_model() -> PatchTSTStyleRegressor:
@@ -120,3 +126,42 @@ def test_calibration_summary_checks_majority_gates(tmp_path: Path) -> None:
     summary = json.loads(output.read_text(encoding="utf-8"))
     assert summary["gate_status"]["synthetic_learning"] == "pass"
     assert summary["gate_status"]["prior_distinguishability"] == "pass"
+
+
+def test_synthetic_evaluation_recovers_existing_checkpoints(tmp_path: Path) -> None:
+    raw = yaml.safe_load(Path("configs/pilot/smoke.yaml").read_text(encoding="utf-8"))
+    raw["experiment"].update(
+        {
+            "name": "recovery",
+            "output_dir": str(tmp_path / "runs"),
+            "validation_samples": 4,
+        }
+    )
+    config_path = tmp_path / "recovery.yaml"
+    config_path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+    config = load_config(config_path)
+    run_directory = tmp_path / "runs" / "recovery-seed17"
+    checkpoint_directory = run_directory / "checkpoints"
+    checkpoint_directory.mkdir(parents=True)
+    (run_directory / "config.yaml").write_text(
+        yaml.safe_dump(raw, sort_keys=False), encoding="utf-8"
+    )
+
+    for prior in config.experiment.priors:
+        model = build_model(config)
+        torch.save(
+            {
+                "model_state": model.state_dict(),
+                "model_config": asdict(model.config),
+                "prior": prior,
+                "step": 5,
+                "validation_log_mse": 0.25,
+            },
+            checkpoint_directory / f"{prior}.pt",
+        )
+
+    recovered = evaluate_synthetic_checkpoints(config_path)
+    metrics = json.loads((recovered / "metrics.json").read_text(encoding="utf-8"))
+    assert metrics["gate_status"]["pipeline"] == "checkpoint_evaluation_complete"
+    assert metrics["training"]["generic"]["recovered_from_checkpoint"] is True
+    assert (recovered / "predictions.csv").exists()
